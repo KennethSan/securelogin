@@ -7,8 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Keep your existing imports if needed
 import './App.css';
-import reactLogo from './assets/react.svg';
-import viteLogo from '/vite.svg';
+
 
 function App() {
   return (

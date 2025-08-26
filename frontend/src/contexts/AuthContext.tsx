@@ -1,5 +1,5 @@
-import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import axios from 'axios';
+import { createContext, useState, useEffect, useContext, type ReactNode } from 'react';
+import { authService } from '../services/auth';
 
 interface User {
   id: number;
@@ -17,6 +17,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   register: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<boolean>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -28,55 +29,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Check if user is already logged in (on app load)
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      fetchUser();
-    } else {
-      setLoading(false);
-    }
+    checkAuthStatus();
   }, []);
 
-  // Fetch authenticated user
-  const fetchUser = async () => {
+  // Check authentication status using session
+  const checkAuthStatus = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const response = await axios.get('http://localhost:8000/api/user', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      });
-      
-      setUser(response.data);
-    } catch (err) {
-      console.error("Error fetching user:", err);
-      localStorage.removeItem('token');
-      setError('Session expired. Please login again.');
+      setLoading(true);
+      const userData = await authService.getCurrentUser();
+      setUser(userData);
+    } catch (err: any) {
+      console.log("User not authenticated");
+      setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
-  // Login function
+  // Login function with session-based auth
   const login = async (email: string, password: string) => {
     try {
       setError(null);
-      const response = await axios.post('http://localhost:8000/api/login', {
-        email,
-        password
-      });
+      setLoading(true);
       
-      localStorage.setItem('token', response.data.token);
-      setUser(response.data.user);
+      const response = await authService.login(email, password);
+      setUser(response.user);
       return true;
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data?.errors?.email?.[0] || 
+                          'Login failed. Please check your credentials.';
+      setError(errorMessage);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -84,38 +70,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const register = async (name: string, email: string, password: string, passwordConfirmation: string) => {
     try {
       setError(null);
-      const response = await axios.post('http://localhost:8000/api/register', {
-        name,
-        email,
-        password,
-        password_confirmation: passwordConfirmation
-      });
+      setLoading(true);
       
-      localStorage.setItem('token', response.data.token);
-      setUser(response.data.user);
+      const response = await authService.register(name, email, password, passwordConfirmation);
+      setUser(response.user);
       return true;
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed.');
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data?.errors?.email?.[0] ||
+                          err.response?.data?.errors?.password?.[0] ||
+                          'Registration failed.';
+      setError(errorMessage);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
   // Logout function
   const logout = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post('http://localhost:8000/api/logout', {}, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      });
+      await authService.logout();
     } catch (err) {
       console.error("Logout error:", err);
     } finally {
-      localStorage.removeItem('token');
       setUser(null);
     }
+  };
+
+  // Clear error function
+  const clearError = () => {
+    setError(null);
   };
 
   return (
@@ -125,7 +110,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       error, 
       login, 
       logout, 
-      register 
+      register,
+      clearError
     }}>
       {children}
     </AuthContext.Provider>
