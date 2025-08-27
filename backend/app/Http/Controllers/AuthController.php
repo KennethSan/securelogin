@@ -20,12 +20,12 @@ class AuthController extends Controller
             'password' => [
                 'required',
                 'string',
-                'min:10',             // increased minimum length for better security
+                'min:10',
                 'confirmed',
-                'regex:/[a-z]/',      // at least one lowercase letter
-                'regex:/[A-Z]/',      // at least one uppercase letter
-                'regex:/[0-9]/',      // at least one digit
-                'regex:/[@$!%*#?&]/', // at least one special character
+                'regex:/[a-z]/',
+                'regex:/[A-Z]/',
+                'regex:/[0-9]/',
+                'regex:/[@$!%*#?&]/',
             ],
         ]);
 
@@ -42,14 +42,12 @@ class AuthController extends Controller
             'ip' => $request->ip()
         ]);
 
-        // Log the user in
-        Auth::login($user);
-        
-        // Regenerate session for security
-        $request->session()->regenerate();
+        // Create API token for the user
+        $token = $user->createToken('auth-token')->plainTextToken;
 
         return response()->json([
             'user' => $user,
+            'token' => $token,
             'message' => 'Registration successful'
         ], 201);
     }
@@ -68,7 +66,10 @@ class AuthController extends Controller
             'user_agent' => $request->header('User-Agent')
         ]);
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
+        // Find user by email
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
             // Log failed login
             Log::warning('Failed login attempt', [
                 'email' => $request->email,
@@ -81,10 +82,8 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // Regenerate session for CSRF protection
-        $request->session()->regenerate();
-
-        $user = Auth::user();
+        // Create API token for the user
+        $token = $user->createToken('auth-token')->plainTextToken;
 
         // Log successful login
         Log::info('User logged in successfully', [
@@ -95,6 +94,7 @@ class AuthController extends Controller
 
         return response()->json([
             'user' => $user,
+            'token' => $token,
             'message' => 'Login successful'
         ], 200);
     }
@@ -106,21 +106,21 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $user = Auth::user();
+        $user = $request->user();
         
-        // Log logout
-        Log::info('User logged out', [
-            'user_id' => $user->id,
-            'email' => $user->email,
-            'ip' => $request->ip()
-        ]);
-        
-        // Invalidate the session
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        if ($user) {
+            // Log logout
+            Log::info('User logged out', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'ip' => $request->ip()
+            ]);
+            
+            // Delete current access token
+            $request->user()->currentAccessToken()->delete();
+        }
 
-        return response()->json(['message' => 'Logged out successfully']);
+        return response()->json(['message' => 'Logout successful'], 200);
     }
 
     public function forgotPassword(Request $request)
@@ -157,10 +157,10 @@ class AuthController extends Controller
                 'required', 
                 'confirmed',
                 'min:10',
-                'regex:/[a-z]/',      // at least one lowercase letter
-                'regex:/[A-Z]/',      // at least one uppercase letter
-                'regex:/[0-9]/',      // at least one digit
-                'regex:/[@$!%*#?&]/', // at least one special character
+                'regex:/[a-z]/',
+                'regex:/[A-Z]/',
+                'regex:/[0-9]/',
+                'regex:/[@$!%*#?&]/',
             ],
         ]);
 

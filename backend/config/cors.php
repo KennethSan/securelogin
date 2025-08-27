@@ -2,7 +2,7 @@
 
 return [
     'paths' => ['api/*', 'sanctum/csrf-cookie', 'login', 'logout', 'register', 'forgot-password', 'reset-password'],
-    'allowed_origins' => ['https://localhost'],  // Updated to HTTPS
+    'allowed_origins' => ['http://localhost:3000', 'http://localhost:5173', 'https://localhost', 'http://localhost'],
     'allowed_methods' => ['*'],
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
