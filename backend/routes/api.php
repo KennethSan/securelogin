@@ -17,5 +17,6 @@ Route::post('/register', [AuthController::class, 'register']);
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
+    Route::get('/me', [AuthController::class, 'user']); // Add this route for the test
     Route::post('/logout', [AuthController::class, 'logout']);
 });

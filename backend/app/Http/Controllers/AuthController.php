@@ -76,9 +76,9 @@ class AuthController extends Controller
                 'user_agent' => $request->header('User-Agent')
             ]);
             
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
-            ]);
+            return response()->json([
+                'message' => 'The provided credentials are incorrect.'
+            ], 401);
         }
 
         // Regenerate session for CSRF protection
@@ -96,7 +96,7 @@ class AuthController extends Controller
         return response()->json([
             'user' => $user,
             'message' => 'Login successful'
-        ]);
+        ], 200);
     }
 
     public function user(Request $request)
