@@ -17,10 +17,10 @@ return [
 
     'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
         '%s%s%s',
-        'localhost,localhost:3000,localhost:5173,127.0.0.1,127.0.0.1:8000,::1',
+        'localhost,localhost:3000,localhost:5173,localhost:8080,localhost:8443,127.0.0.1,127.0.0.1:8000,::1',
         Sanctum::currentApplicationUrlWithPort(),
-        // Add the frontend URL explicitly
-        ',http://localhost:5173'
+        // Add the frontend URLs explicitly
+        ',http://localhost:5173,https://localhost:8443,http://localhost:8080'
     ))),
 
     /*

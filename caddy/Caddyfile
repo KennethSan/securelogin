@@ -1,0 +1,165 @@
+# Global options
+{
+    # Disable automatic HTTPS for localhost development
+    auto_https off
+    
+    # Enable access logs with structured format
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}
+
+# HTTP to HTTPS redirect (port 80 inside container)
+:80 {
+    redir https://{host}:8443{uri} permanent
+}
+
+# Main HTTPS server block (port 443 inside container)
+:443 {
+    # Use existing SSL certificates - fixed paths to match Docker mount
+    tls /etc/ssl/certs/localhost.crt /etc/ssl/certs/localhost.key
+
+    # Global security headers
+    header {
+        # Prevent clickjacking
+        X-Frame-Options DENY
+        
+        # XSS protection
+        X-Content-Type-Options nosniff
+        X-XSS-Protection "1; mode=block"
+        
+        # Strict Transport Security (HSTS)
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        
+        # Content Security Policy
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none';"
+        
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+        
+        # Feature policy
+        Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=()"
+        
+        # Remove server information
+        -Server
+    }
+
+    # Enable structured JSON logging for security analysis
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+
+    # Handle preflight CORS requests first
+    @options method OPTIONS
+    handle @options {
+        header {
+            Access-Control-Allow-Origin "https://localhost:8443"
+            Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN, X-XSRF-TOKEN, Accept, Origin"
+            Access-Control-Allow-Credentials "true"
+            Access-Control-Max-Age "86400"
+        }
+        respond "" 204
+    }
+
+    # API routes - Laravel backend
+    @api_routes path /api/* /sanctum/*
+    handle @api_routes {
+        header {
+            Access-Control-Allow-Origin "https://localhost:8443"
+            Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN, X-XSRF-TOKEN, Accept, Origin"
+            Access-Control-Allow-Credentials "true"
+            Access-Control-Max-Age "86400"
+        }
+        
+        reverse_proxy backend:8000 {
+            header_up Host {http.request.host}
+            header_up X-Real-IP {http.request.remote}
+        }
+    }
+
+    # Development routes - Laravel backend (only in local environment)
+    @dev_routes path /dev/*
+    handle @dev_routes {
+        header {
+            Access-Control-Allow-Origin "https://localhost:8443"
+            Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN, X-XSRF-TOKEN, Accept, Origin"
+            Access-Control-Allow-Credentials "true"
+            Access-Control-Max-Age "86400"
+        }
+        
+        reverse_proxy backend:8000 {
+            header_up Host {http.request.host}
+            header_up X-Real-IP {http.request.remote}
+            header_up X-XSRF-TOKEN {http.request.header.X-XSRF-TOKEN}
+            header_up Cookie {http.request.header.Cookie}
+        }
+    }
+
+    # Authentication API routes - Laravel backend (POST requests only)
+    @auth_post_routes {
+        method POST
+        path /login /register /logout /forgot-password /reset-password /dev/verify-email /test-login
+    }
+    handle @auth_post_routes {
+        header {
+            Access-Control-Allow-Origin "https://localhost:8443"
+            Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN, X-XSRF-TOKEN, Accept, Origin"
+            Access-Control-Allow-Credentials "true"
+            Access-Control-Max-Age "86400"
+        }
+        
+        reverse_proxy backend:8000 {
+            header_up Host {http.request.host}
+            header_up X-Real-IP {http.request.remote}
+            # Forward CSRF tokens for Laravel Sanctum
+            header_up X-XSRF-TOKEN {http.request.header.X-XSRF-TOKEN}
+            header_up Cookie {http.request.header.Cookie}
+        }
+    }
+
+    # Other authentication routes - Laravel backend (non-POST requests)
+    @auth_routes path /logout /forgot-password /reset-password /reset-password/* /dev/verify-email /test-login
+    handle @auth_routes {
+        header {
+            Access-Control-Allow-Origin "https://localhost:8443"
+            Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN, X-XSRF-TOKEN, Accept, Origin"
+            Access-Control-Allow-Credentials "true"
+            Access-Control-Max-Age "86400"
+        }
+        
+        reverse_proxy backend:8000 {
+            header_up Host {http.request.host}
+            header_up X-Real-IP {http.request.remote}
+            # Forward CSRF tokens for Laravel Sanctum
+            header_up X-XSRF-TOKEN {http.request.header.X-XSRF-TOKEN}
+            header_up Cookie {http.request.header.Cookie}
+        }
+    }
+
+    # Frontend routes (React SPA) - default handler
+    handle {
+        # Support for WebSocket connections (Vite HMR)
+        @websocket {
+            header Connection *Upgrade*
+            header Upgrade websocket
+        }
+        handle @websocket {
+            reverse_proxy frontend:5173
+        }
+        
+        # Regular frontend requests
+        reverse_proxy frontend:5173 {
+            header_up Host {http.request.host}
+            header_up X-Real-IP {http.request.remote}
+        }
+    }
+}

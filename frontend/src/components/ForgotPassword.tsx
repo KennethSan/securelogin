@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import axios from 'axios';
+import { Link } from 'react-router-dom';
+import { authService } from '../services/auth';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -11,26 +12,14 @@ export default function ForgotPassword() {
     setStatus('loading');
     
     try {
-      // Get CSRF cookie first
-      await axios.get('http://localhost:8000/sanctum/csrf-cookie', {
-        withCredentials: true
-      });
-      
-      // Send password reset request
-      await axios.post('http://localhost:8000/api/password/email', 
-        { email },
-        { 
-          withCredentials: true,
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+      // Use the auth service instead of direct axios calls
+      const response = await authService.forgotPassword(email);
       
       setStatus('success');
       setMessage('Password reset link has been sent to your email!');
+      console.log('Password reset response:', response);
     } catch (error: any) {
+      console.error('Password reset error:', error);
       setStatus('error');
       setMessage(error.response?.data?.message || 'An error occurred. Please try again.');
     }
@@ -38,7 +27,7 @@ export default function ForgotPassword() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Reset your password
@@ -61,7 +50,7 @@ export default function ForgotPassword() {
         )}
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="rounded-md shadow-sm">
             <div>
               <label htmlFor="email-address" className="sr-only">Email address</label>
               <input
@@ -82,16 +71,16 @@ export default function ForgotPassword() {
             <button
               type="submit"
               disabled={status === 'loading'}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
               {status === 'loading' ? 'Sending...' : 'Send Reset Link'}
             </button>
           </div>
           
           <div className="text-sm text-center">
-            <a href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
               Return to login
-            </a>
+            </Link>
           </div>
         </form>
       </div>

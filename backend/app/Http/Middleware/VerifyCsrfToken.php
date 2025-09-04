@@ -12,22 +12,17 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        'api/*',  // Exclude all API routes from CSRF verification
-        'logout', // Exclude logout for session-based auth without CSRF
-        '/logout', // Also exclude with leading slash
-        '*/logout', // Wildcard pattern for logout
+        // CSRF bootstrap endpoint
+        'sanctum/csrf-cookie',
+
+        // Development-only utilities (keep minimal)
+        'dev/*',
+        '/dev/*',
+
+        // Optionally keep direct debug helpers (non-production)
+        'test-login',
+        '/test-login',
+        'debug-login',
+        '/debug-login',
     ];
-
-    /**
-     * Determine if the request has a URI that should pass through CSRF verification.
-     */
-    protected function inExceptArray($request)
-    {
-        // Check if this is a logout request - bypass CSRF completely
-        if ($request->is('logout') || $request->path() === 'logout') {
-            return true;
-        }
-
-        return parent::inExceptArray($request);
-    }
 }
